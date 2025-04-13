@@ -1,166 +1,196 @@
 # CTS (Content Trust Score) 프로젝트
 
-## 프로젝트 개요
-CTS는 유튜브 콘텐츠의 신뢰도를 평가하는 시스템입니다. NLP 기술을 활용하여 콘텐츠의 신뢰도를 분석하고 점수를 부여합니다.
+YouTube 콘텐츠의 신뢰도를 평가하는 웹 애플리케이션입니다. NLP 기술을 활용하여 콘텐츠의 출처와 내용을 분석하고 신뢰도 점수를 제공합니다.
+
+## 주요 기능
+
+- YouTube 콘텐츠 검색 및 분석
+- 출처/채널 신뢰도 평가
+  - 구독자 수 분석
+  - 채널 활동 기간 평가
+  - 시청자 참여도 분석
+- 내용 신뢰도 평가
+  - 제목 분석
+  - 설명 분석
+  - 감정 분석
+- 평가 결과 히스토리 관리
+- 모바일 반응형 UI
+
+## 기술 스택
+
+- Frontend: React, Vite
+- Backend: FastAPI
+- NLP: Hugging Face Transformers
+- API: YouTube Data API
 
 ## 프로젝트 구조
+
 ```
-📁 cts-project/
-├── 📁 backend/                       # FastAPI 앱 소스 코드
-│   ├── main.py                      # 진입점
-│   ├── requirements.txt            # 의존성 목록
-│   ├── Dockerfile                  # FastAPI용 Docker 빌드 정의
-│   ├── .env.example                # 공유용 환경변수 템플릿
-│   ├── 📁 modules/                  # 기능 모듈
-│   │   ├── youtube.py              # YouTube API 통신
-│   │   ├── evaluator.py            # 총괄 평가 관리
-│   │   ├── trust.py                # 출처 및 채널 분석
-│   │   ├── nlp.py                  # 내용 분석
-│   │   └── scoring.py              # 점수 계산 및 등급화
-│   ├── 📁 models/                   # Pydantic 모델
-│   └── 📁 utils/                    # 유틸리티 함수
-├── 📁 frontend/                     # React 앱 소스 코드
-│   ├── package.json                # npm 의존성
-│   ├── vite.config.js              # Vite 설정
-│   ├── Dockerfile                  # React 앱용 Docker 빌드 정의
-│   ├── 📁 src/                     # 소스 코드
-│   │   ├── 📁 components/          # 재사용 가능한 컴포넌트
-│   │   │   ├── SearchBar.jsx      # 검색 입력 컴포넌트
-│   │   │   ├── VideoCard.jsx      # 비디오 정보 카드
-│   │   │   ├── ScoreCard.jsx      # 평가 결과 카드
-│   │   │   └── LoadingSpinner.jsx # 로딩 인디케이터
-│   │   ├── 📁 pages/              # 페이지 컴포넌트
-│   │   │   ├── Home.jsx          # 메인 페이지
-│   │   │   └── Result.jsx        # 결과 페이지
-│   │   ├── 📁 styles/            # 스타일 파일
-│   │   ├── 📁 utils/             # 유틸리티 함수
-│   │   └── App.jsx               # 앱 진입점
-├── 📁 credentials/                 # 실제 .env 파일 위치
-│   └── .env                        # 실제 환경변수
-├── docker-compose.yml             # 전체 서비스 구성
-└── README.md                      # 프로젝트 설명서
+cts-project/
+├── frontend/                 # React 프론트엔드
+│   ├── src/
+│   │   ├── components/      # UI 컴포넌트
+│   │   ├── contexts/        # React Context
+│   │   ├── services/        # API 서비스
+│   │   ├── constants/       # 상수 정의
+│   │   ├── styles/          # CSS 스타일
+│   │   └── pages/           # 페이지 컴포넌트
+│   └── public/              # 정적 파일
+├── backend/                  # FastAPI 백엔드
+│   ├── app/
+│   │   ├── api/            # API 엔드포인트
+│   │   ├── core/           # 핵심 로직
+│   │   ├── models/         # 데이터 모델
+│   │   └── services/       # 비즈니스 로직
+│   ├── modules/            # 기능 모듈
+│   │   ├── evaluator.py    # 평가 로직
+│   │   └── youtube.py      # YouTube API 통신
+│   └── tests/              # 테스트 코드
+└── README.md               # 프로젝트 문서
 ```
 
-## 시작하기
+## 평가 기준
 
-### 사전 요구사항
-- Docker
-- Docker Compose
-- Node.js (개발용)
+### 등급 기준
+- A (0.8 이상): 매우 신뢰할 수 있음
+- B (0.6 이상): 신뢰할 수 있음
+- C (0.4 이상): 보통
+- D (0.2 이상): 주의 필요
+- F (0.2 미만): 신뢰할 수 없음
 
-### 설치 및 실행
-1. 저장소 클론
-```bash
-git clone https://github.com/LuaAI777/cts-project.git
-cd cts-project
-```
+### 평가 요소
+1. 출처/채널 신뢰도 (60%)
+   - 구독자 수 (30%)
+     - 100만 이상: 1.0
+     - 10만 이상: 0.8
+     - 1만 이상: 0.6
+     - 1천 이상: 0.4
+     - 그 외: 0.2
+   - 활동 기간 (20%)
+     - 5년 이상: 1.0
+     - 3년 이상: 0.8
+     - 1년 이상: 0.6
+     - 그 외: 0.4
+   - 참여도 (50%)
+     - 좋아요/조회수 ≥ 0.1, 댓글/조회수 ≥ 0.01: 1.0
+     - 좋아요/조회수 ≥ 0.05, 댓글/조회수 ≥ 0.005: 0.8
+     - 좋아요/조회수 ≥ 0.02, 댓글/조회수 ≥ 0.002: 0.6
+     - 그 외: 0.4
 
-2. 환경 변수 설정
-```bash
-cp backend/.env.example credentials/.env
-# credentials/.env 파일을 편집하여 필요한 API 키 등을 설정
-```
-
-3. 서비스 실행
-```bash
-docker-compose up --build
-```
-
-4. 접속
-- 프론트엔드: http://localhost:5173
-- 백엔드 API: http://localhost:8000
-- API 문서: http://localhost:8000/docs
-
-## 프론트엔드 UI
-
-### 홈 페이지
-- YouTube URL 또는 비디오 ID 입력
-- 입력 유효성 검사
-- 에러 메시지 표시
-
-### 결과 페이지
-- 비디오 정보 카드
-  - 제목, 설명, 채널명
-  - 조회수, 좋아요 수, 댓글 수
-  - 게시일
-- 신뢰도 평가 결과 카드
-  - 종합 등급 (A~F)
-  - 종합 점수
-  - 출처/채널 신뢰도
-  - 내용 신뢰도
-- 로딩 상태 표시
-- 에러 처리
+2. 내용 신뢰도 (40%)
+   - 제목 분석 (30%)
+     - 길이 10-100자: 1.0
+     - 길이 5-150자: 0.8
+     - 그 외: 0.6
+   - 설명 분석 (40%)
+     - 길이 100-5000자: 1.0
+     - 길이 50-10000자: 0.8
+     - 그 외: 0.6
+   - 감정 분석 (30%)
+     - 중립성 평가
+     - 극단성 평가
 
 ## API 엔드포인트
 
-### 환경 변수 확인
-- GET `/env-check`
-- 현재 설정된 환경 변수 확인
+### 비디오 평가
+```http
+POST /api/evaluate
+Content-Type: application/json
 
-### YouTube API
-- GET `/youtube/video/{video_id}`
-  - 비디오 정보 조회
-  - 예시: `http://localhost:8000/youtube/video/dQw4w9WgXcQ`
+{
+  "video_id": "비디오ID"
+}
+```
 
-- GET `/youtube/search`
-  - 비디오 검색
-  - 파라미터:
-    - `query`: 검색어
-    - `max_results`: 최대 결과 수 (기본값: 10)
-  - 예시: `http://localhost:8000/youtube/search?query=python&max_results=5`
+응답:
+```json
+{
+  "video_info": {
+    "title": "비디오 제목",
+    "channel": "채널명",
+    "views": 1000000,
+    "likes": 50000,
+    "comments": 2000,
+    "published_at": "2024-03-20T10:00:00Z"
+  },
+  "evaluation": {
+    "source_trust": {
+      "score": 0.85,
+      "details": {
+        "subscriber_score": 0.9,
+        "activity_score": 0.8,
+        "engagement_score": 0.85
+      }
+    },
+    "content_trust": {
+      "score": 0.75,
+      "details": {
+        "title_score": 0.8,
+        "description_score": 0.7,
+        "sentiment_score": 0.75
+      }
+    },
+    "final_score": 0.81,
+    "grade": "A"
+  },
+  "analysis": {
+    "source_analysis": "채널의 구독자 수가 많고, 활동 기간이 길며, 시청자 참여도가 높습니다.",
+    "content_analysis": "제목과 설명이 적절하며, 내용이 중립적이고 균형 잡혀 있습니다."
+  }
+}
+```
 
-### 콘텐츠 평가
-- GET `/evaluate/{video_id}`
-  - 비디오의 신뢰도를 종합적으로 평가
-  - 평가 요소:
-    - 출처/채널 신뢰도 (60%)
-    - 내용 신뢰도 (40%)
-  - 등급:
-    - A: 0.8 이상 (매우 신뢰할 수 있음)
-    - B: 0.6 이상 (신뢰할 수 있음)
-    - C: 0.4 이상 (보통)
-    - D: 0.2 이상 (주의 필요)
-    - F: 0.2 미만 (신뢰할 수 없음)
-  - 예시: `http://localhost:8000/evaluate/dQw4w9WgXcQ`
+### 비디오 검색
+```http
+POST /api/search
+Content-Type: application/json
 
-## 평가 요소 상세
+{
+  "query": "검색어",
+  "max_results": 10
+}
+```
 
-### 출처/채널 분석 (TrustAnalyzer)
-- 채널 신뢰도
-  - 구독자 수
-  - 채널 활동 기간
-  - 과거 콘텐츠 평가
-- 참여도 분석
-  - 좋아요 비율
-  - 댓글 비율
-  - 조회수 대비 상호작용
+## 설치 및 실행
 
-### 내용 분석 (ContentAnalyzer)
-- 제목 분석
-  - 길이
-  - 키워드
-  - 감정 분석
-- 설명 분석
-  - 길이
-  - 키워드
-  - 링크 포함 여부
-  - 감정 분석
+### 프론트엔드
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-### 점수 계산 (ScoreCalculator)
-- 가중치 적용
-  - 출처/채널: 60%
-  - 내용: 40%
-- 등급화
-  - A~F 등급
-  - 등급별 설명 제공
+### 백엔드
+```bash
+cd backend
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
 
-## 개발 가이드
-- 새로운 기능 추가 시 `backend/modules/` 디렉토리에 모듈 추가
-- API 엔드포인트는 `main.py`에 등록
-- 모델 정의는 `backend/models/` 디렉토리에 추가
-- 유틸리티 함수는 `backend/utils/` 디렉토리에 추가
-- 프론트엔드 컴포넌트는 `frontend/src/components/` 디렉토리에 추가
-- 프론트엔드 페이지는 `frontend/src/pages/` 디렉토리에 추가
+## 환경 변수 설정
+
+`.env` 파일을 생성하고 다음 변수를 설정합니다:
+
+```
+YOUTUBE_API_KEY=your_api_key
+```
+
+## 개발 가이드라인
+
+1. **코드 스타일**
+   - ESLint와 Prettier를 사용한 코드 포맷팅
+   - 컴포넌트는 함수형으로 작성
+   - CSS는 CSS Modules 또는 Styled Components 사용
+
+2. **테스트**
+   - Jest와 React Testing Library를 사용한 단위 테스트
+   - Cypress를 사용한 E2E 테스트
+
+3. **성능 최적화**
+   - React.memo와 useMemo를 활용한 렌더링 최적화
+   - 이미지 최적화 및 지연 로딩
+   - 코드 스플리팅 적용
 
 ## 라이선스
-[라이선스 정보]
+
+MIT License

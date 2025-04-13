@@ -1,4 +1,5 @@
-from typing import Dict
+from typing import Dict, List, Tuple
+from datetime import datetime
 from .trust import TrustAnalyzer
 from .nlp import ContentAnalyzer
 from .scoring import ScoreCalculator
@@ -45,4 +46,161 @@ class ContentEvaluator:
                 )
             }
         except Exception as e:
-            return {"error": f"평가 중 오류 발생: {str(e)}"} 
+            return {"error": f"평가 중 오류 발생: {str(e)}"}
+
+class Evaluator:
+    def __init__(self):
+        self.source_weights = {
+            'subscriber': 0.3,
+            'activity': 0.2,
+            'engagement': 0.5
+        }
+        
+        self.content_weights = {
+            'title': 0.3,
+            'description': 0.4,
+            'sentiment': 0.3
+        }
+        
+        self.final_weights = {
+            'source': 0.6,
+            'content': 0.4
+        }
+
+    def evaluate_source_trust(self, video_data: Dict) -> Dict:
+        """출처/채널 신뢰도 평가"""
+        subscriber_score = self._calculate_subscriber_score(video_data['subscriber_count'])
+        activity_score = self._calculate_activity_score(video_data['channel_age'])
+        engagement_score = self._calculate_engagement_score(
+            video_data['likes'],
+            video_data['comments'],
+            video_data['views']
+        )
+        
+        return {
+            'subscriber_score': subscriber_score,
+            'activity_score': activity_score,
+            'engagement_score': engagement_score,
+            'total_score': self._calculate_weighted_score([
+                (subscriber_score, self.source_weights['subscriber']),
+                (activity_score, self.source_weights['activity']),
+                (engagement_score, self.source_weights['engagement'])
+            ])
+        }
+
+    def evaluate_content_trust(self, video_data: Dict) -> Dict:
+        """내용 신뢰도 평가"""
+        title_score = self._analyze_title(video_data['title'])
+        description_score = self._analyze_description(video_data['description'])
+        sentiment_score = self._analyze_sentiment(video_data['title'], video_data['description'])
+        
+        return {
+            'title_score': title_score,
+            'description_score': description_score,
+            'sentiment_score': sentiment_score,
+            'total_score': self._calculate_weighted_score([
+                (title_score, self.content_weights['title']),
+                (description_score, self.content_weights['description']),
+                (sentiment_score, self.content_weights['sentiment'])
+            ])
+        }
+
+    def calculate_final_score(self, source_trust: Dict, content_trust: Dict) -> Dict:
+        """종합 점수 계산"""
+        final_score = self._calculate_weighted_score([
+            (source_trust['total_score'], self.final_weights['source']),
+            (content_trust['total_score'], self.final_weights['content'])
+        ])
+        
+        return {
+            'source_trust': source_trust['total_score'],
+            'content_trust': content_trust['total_score'],
+            'final_score': final_score,
+            'grade': self._calculate_grade(final_score)
+        }
+
+    def _calculate_subscriber_score(self, subscriber_count: int) -> float:
+        """구독자 수 점수 계산"""
+        if subscriber_count >= 1000000:
+            return 1.0
+        elif subscriber_count >= 100000:
+            return 0.8
+        elif subscriber_count >= 10000:
+            return 0.6
+        elif subscriber_count >= 1000:
+            return 0.4
+        else:
+            return 0.2
+
+    def _calculate_activity_score(self, channel_age: int) -> float:
+        """채널 활동 기간 점수 계산"""
+        if channel_age >= 365 * 5:  # 5년 이상
+            return 1.0
+        elif channel_age >= 365 * 3:  # 3년 이상
+            return 0.8
+        elif channel_age >= 365:  # 1년 이상
+            return 0.6
+        else:
+            return 0.4
+
+    def _calculate_engagement_score(self, likes: int, comments: int, views: int) -> float:
+        """참여도 점수 계산"""
+        if views == 0:
+            return 0.0
+            
+        like_ratio = likes / views
+        comment_ratio = comments / views
+        
+        if like_ratio >= 0.1 and comment_ratio >= 0.01:
+            return 1.0
+        elif like_ratio >= 0.05 and comment_ratio >= 0.005:
+            return 0.8
+        elif like_ratio >= 0.02 and comment_ratio >= 0.002:
+            return 0.6
+        else:
+            return 0.4
+
+    def _analyze_title(self, title: str) -> float:
+        """제목 분석"""
+        length = len(title)
+        if 10 <= length <= 100:
+            return 1.0
+        elif 5 <= length <= 150:
+            return 0.8
+        else:
+            return 0.6
+
+    def _analyze_description(self, description: str) -> float:
+        """설명 분석"""
+        length = len(description)
+        if 100 <= length <= 5000:
+            return 1.0
+        elif 50 <= length <= 10000:
+            return 0.8
+        else:
+            return 0.6
+
+    def _analyze_sentiment(self, title: str, description: str) -> float:
+        """감정 분석"""
+        # TODO: 실제 감정 분석 모델 구현
+        return 0.8
+
+    def _calculate_weighted_score(self, scores: List[Tuple[float, float]]) -> float:
+        """가중 평균 점수 계산"""
+        total_weight = sum(weight for _, weight in scores)
+        if total_weight == 0:
+            return 0.0
+        return sum(score * weight for score, weight in scores) / total_weight
+
+    def _calculate_grade(self, score: float) -> str:
+        """등급 계산"""
+        if score >= 0.8:
+            return "A"
+        elif score >= 0.6:
+            return "B"
+        elif score >= 0.4:
+            return "C"
+        elif score >= 0.2:
+            return "D"
+        else:
+            return "F" 

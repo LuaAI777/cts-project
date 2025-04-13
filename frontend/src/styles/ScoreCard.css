@@ -1,0 +1,111 @@
+.score-card {
+  background: var(--card-background);
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+  padding: 1.5rem;
+}
+
+.grade-section {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.grade-circle {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 2rem;
+  font-weight: bold;
+}
+
+.grade-info {
+  flex: 1;
+}
+
+.grade-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.grade-description {
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.score-section {
+  margin-bottom: 1.5rem;
+}
+
+.score-bar {
+  width: 100%;
+  height: 8px;
+  background-color: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+}
+
+.score-progress {
+  height: 100%;
+  background-color: var(--primary-color);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.score-value {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.detail-section {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+.detail-item {
+  background-color: #f9fafb;
+  padding: 1rem;
+  border-radius: var(--border-radius);
+}
+
+.detail-label {
+  display: block;
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-bottom: 0.25rem;
+}
+
+.detail-value {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+@media (max-width: 640px) {
+  .grade-circle {
+    width: 48px;
+    height: 48px;
+    font-size: 1.5rem;
+  }
+
+  .detail-section {
+    grid-template-columns: 1fr;
+  }
+
+  .score-value {
+    font-size: 1rem;
+  }
+
+  .detail-value {
+    font-size: 1.25rem;
+  }
+} 

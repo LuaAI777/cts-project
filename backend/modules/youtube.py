@@ -1,80 +1,94 @@
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
-import os
 from typing import Dict, Optional
+import os
+from googleapiclient.discovery import build
+from datetime import datetime, timezone
 
 class YouTubeAPI:
     def __init__(self):
-        self.api_key = os.getenv("YOUTUBE_API_KEY")
-        self.youtube = build('youtube', 'v3', developerKey=self.api_key)
+        api_key = os.getenv('YOUTUBE_API_KEY')
+        if not api_key:
+            raise ValueError("YouTube API 키가 설정되지 않았습니다.")
+        
+        self.youtube = build('youtube', 'v3', developerKey=api_key)
 
     def get_video_info(self, video_id: str) -> Dict:
-        """
-        YouTube 비디오 정보를 가져옵니다.
-        
-        Args:
-            video_id (str): YouTube 비디오 ID
-            
-        Returns:
-            Dict: 비디오 정보
-        """
+        """비디오 정보 가져오기"""
         try:
-            request = self.youtube.videos().list(
-                part="snippet,statistics",
+            # 비디오 정보 조회
+            video_response = self.youtube.videos().list(
+                part='snippet,statistics',
                 id=video_id
-            )
-            response = request.execute()
-            
-            if not response['items']:
-                return {"error": "비디오를 찾을 수 없습니다."}
-            
-            video = response['items'][0]
+            ).execute()
+
+            if not video_response['items']:
+                raise ValueError("비디오를 찾을 수 없습니다.")
+
+            video = video_response['items'][0]
+            snippet = video['snippet']
+            statistics = video['statistics']
+
+            # 채널 정보 조회
+            channel_response = self.youtube.channels().list(
+                part='snippet,statistics',
+                id=snippet['channelId']
+            ).execute()
+
+            channel = channel_response['items'][0]
+            channel_statistics = channel['statistics']
+
+            # 채널 생성일 계산
+            channel_created = datetime.strptime(
+                channel['snippet']['publishedAt'],
+                '%Y-%m-%dT%H:%M:%SZ'
+            ).replace(tzinfo=timezone.utc)
+            channel_age = (datetime.now(timezone.utc) - channel_created).days
+
             return {
-                "title": video['snippet']['title'],
-                "description": video['snippet']['description'],
-                "channel_title": video['snippet']['channelTitle'],
-                "published_at": video['snippet']['publishedAt'],
-                "view_count": video['statistics']['viewCount'],
-                "like_count": video['statistics'].get('likeCount', 0),
-                "comment_count": video['statistics'].get('commentCount', 0)
+                'title': snippet['title'],
+                'description': snippet['description'],
+                'channel_id': snippet['channelId'],
+                'channel_title': snippet['channelTitle'],
+                'published_at': snippet['publishedAt'],
+                'views': int(statistics.get('viewCount', 0)),
+                'likes': int(statistics.get('likeCount', 0)),
+                'comments': int(statistics.get('commentCount', 0)),
+                'subscriber_count': int(channel_statistics.get('subscriberCount', 0)),
+                'channel_age': channel_age
             }
-        except HttpError as e:
-            return {"error": f"API 오류: {str(e)}"}
+
         except Exception as e:
-            return {"error": f"오류 발생: {str(e)}"}
+            raise Exception(f"YouTube API 호출 중 오류 발생: {str(e)}")
 
     def search_videos(self, query: str, max_results: int = 10) -> Dict:
-        """
-        YouTube에서 비디오를 검색합니다.
-        
-        Args:
-            query (str): 검색어
-            max_results (int): 최대 결과 수
-            
-        Returns:
-            Dict: 검색 결과
-        """
+        """비디오 검색"""
         try:
-            request = self.youtube.search().list(
-                part="snippet",
+            search_response = self.youtube.search().list(
                 q=query,
+                part='snippet',
                 maxResults=max_results,
-                type="video"
-            )
-            response = request.execute()
-            
+                type='video'
+            ).execute()
+
             results = []
-            for item in response['items']:
+            for item in search_response['items']:
                 video_id = item['id']['videoId']
                 video_info = self.get_video_info(video_id)
-                if "error" not in video_info:
-                    results.append(video_info)
-            
+                results.append({
+                    'video_id': video_id,
+                    'title': item['snippet']['title'],
+                    'description': item['snippet']['description'],
+                    'thumbnail': item['snippet']['thumbnails']['high']['url'],
+                    'channel_title': item['snippet']['channelTitle'],
+                    'published_at': item['snippet']['publishedAt'],
+                    'views': video_info['views'],
+                    'likes': video_info['likes'],
+                    'comments': video_info['comments']
+                })
+
             return {
-                "total_results": len(results),
-                "items": results
+                'total_results': search_response['pageInfo']['totalResults'],
+                'results': results
             }
-        except HttpError as e:
-            return {"error": f"API 오류: {str(e)}"}
+
         except Exception as e:
-            return {"error": f"오류 발생: {str(e)}"} 
+            raise Exception(f"비디오 검색 중 오류 발생: {str(e)}") 
