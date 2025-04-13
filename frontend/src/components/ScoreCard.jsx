@@ -1,7 +1,7 @@
 import React from 'react';
 import '../styles/ScoreCard.css';
 
-const ScoreCard = ({ score }) => {
+const ScoreCard = ({ evaluation }) => {
   const getGradeColor = (grade) => {
     switch (grade) {
       case 'A': return '#10B981';
@@ -29,14 +29,14 @@ const ScoreCard = ({ score }) => {
       <div className="grade-section">
         <div 
           className="grade-circle"
-          style={{ backgroundColor: getGradeColor(score.grade) }}
+          style={{ backgroundColor: getGradeColor(evaluation.grade) }}
         >
-          {score.grade}
+          {evaluation.grade}
         </div>
         <div className="grade-info">
           <h3 className="grade-title">종합 등급</h3>
           <p className="grade-description">
-            {getGradeDescription(score.grade)}
+            {getGradeDescription(evaluation.grade)}
           </p>
         </div>
       </div>
@@ -45,11 +45,11 @@ const ScoreCard = ({ score }) => {
         <div className="score-bar">
           <div 
             className="score-progress"
-            style={{ width: `${score.totalScore * 100}%` }}
+            style={{ width: `${evaluation.total_score * 100}%` }}
           />
         </div>
         <span className="score-value">
-          {Math.round(score.totalScore * 100)}점
+          {Math.round(evaluation.total_score * 100)}점
         </span>
       </div>
 
@@ -57,13 +57,13 @@ const ScoreCard = ({ score }) => {
         <div className="detail-item">
           <span className="detail-label">출처/채널 신뢰도</span>
           <span className="detail-value">
-            {Math.round(score.sourceScore * 100)}점
+            {Math.round(evaluation.trust_analysis.total_score * 100)}점
           </span>
         </div>
         <div className="detail-item">
           <span className="detail-label">내용 신뢰도</span>
           <span className="detail-value">
-            {Math.round(score.contentScore * 100)}점
+            {Math.round(evaluation.content_analysis.total_score * 100)}점
           </span>
         </div>
       </div>

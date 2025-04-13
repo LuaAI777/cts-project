@@ -4,6 +4,8 @@ import VideoCard from '../components/VideoCard';
 import ScoreCard from '../components/ScoreCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
 const Result = () => {
   const { videoId } = useParams();
   const navigate = useNavigate();
@@ -16,21 +18,39 @@ const Result = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [videoResponse, evalResponse] = await Promise.all([
-          fetch(`${import.meta.env.VITE_API_URL}/youtube/video/${videoId}`),
-          fetch(`${import.meta.env.VITE_API_URL}/evaluate/${videoId}`)
-        ]);
+        const response = await fetch(`${API_BASE_URL}/evaluate/${videoId}`, {
+          headers: {
+            ...(localStorage.getItem('token') && {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }),
+            'Content-Type': 'application/json'
+          }
+        });
 
-        if (!videoResponse.ok || !evalResponse.ok) {
-          throw new Error('데이터를 불러오는 중 오류가 발생했습니다.');
+        if (!response.ok) {
+          throw new Error(`데이터를 불러오는 중 오류가 발생했습니다: ${response.status}`);
         }
 
-        const videoData = await videoResponse.json();
-        const evalData = await evalResponse.json();
-
-        setVideoInfo(videoData);
-        setEvaluation(evalData);
+        const data = await response.json();
+        setVideoInfo(data.video_info);
+        setEvaluation({
+          trust_analysis: {
+            details: `구독자 수: ${data.source_trust.subscriber_score * 100}%, 
+                     채널 활동: ${data.source_trust.activity_score * 100}%, 
+                     참여도: ${data.source_trust.engagement_score * 100}%`,
+            total_score: data.source_trust.total_score
+          },
+          content_analysis: {
+            details: `제목 분석: ${data.content_trust.title_score * 100}%, 
+                     설명 분석: ${data.content_trust.description_score * 100}%, 
+                     감정 분석: ${data.content_trust.sentiment_score * 100}%`,
+            total_score: data.content_trust.total_score
+          },
+          total_score: data.final_score.final_score,
+          grade: data.final_score.grade
+        });
       } catch (err) {
+        console.error('데이터 로딩 중 오류:', err);
         setError(err.message);
       } finally {
         setLoading(false);

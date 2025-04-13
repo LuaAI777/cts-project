@@ -1,0 +1,30 @@
+{
+  "weights": {
+    "source": 0.6,
+    "content": 0.4
+  },
+  "thresholds": {
+    "subscribers": {
+      "high": 1000000,
+      "medium": 100000,
+      "low": 10000
+    },
+    "activity": {
+      "high": 365,
+      "medium": 180,
+      "low": 90
+    }
+  },
+  "keywords": {
+    "required": [
+      "연구",
+      "데이터",
+      "출처"
+    ],
+    "suspicious": [
+      "확실",
+      "무조건",
+      "100%"
+    ]
+  }
+}

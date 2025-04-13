@@ -3,6 +3,7 @@ import '../styles/VideoCard.css';
 
 const VideoCard = ({ video }) => {
   const formatNumber = (num) => {
+    if (!num && num !== 0) return '0';
     if (num >= 1000000) {
       return (num / 1000000).toFixed(1) + 'M';
     }
@@ -25,27 +26,27 @@ const VideoCard = ({ video }) => {
     <div className="video-card">
       <div className="thumbnail-container">
         <img
-          src={video.thumbnail}
+          src={video.thumbnail_url}
           alt={video.title}
           className="thumbnail"
         />
       </div>
       <div className="video-info">
         <h3 className="video-title">{video.title}</h3>
-        <p className="channel-name">{video.channelTitle}</p>
+        <p className="channel-name">{video.channel_title}</p>
         <div className="video-stats">
           <span className="stat">
-            👁️ {formatNumber(video.viewCount)} 조회수
+            👁️ {formatNumber(video.views)} 조회수
           </span>
           <span className="stat">
-            👍 {formatNumber(video.likeCount)} 좋아요
+            👍 {formatNumber(video.likes)} 좋아요
           </span>
           <span className="stat">
-            💬 {formatNumber(video.commentCount)} 댓글
+            💬 {formatNumber(video.comments)} 댓글
           </span>
         </div>
         <p className="publish-date">
-          📅 {formatDate(video.publishedAt)}
+          📅 {formatDate(video.published_at)}
         </p>
       </div>
     </div>
