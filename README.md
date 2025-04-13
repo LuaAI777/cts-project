@@ -29,7 +29,7 @@ CTS는 유튜브 콘텐츠의 신뢰도를 평가하는 시스템입니다. NLP 
 ### 설치 및 실행
 1. 저장소 클론
 ```bash
-git clone [repository-url]
+git clone https://github.com/LuaAI777/cts-project.git
 cd cts-project
 ```
 
@@ -55,4 +55,4 @@ docker-compose up --build
 - 유틸리티 함수는 `backend/utils/` 디렉토리에 추가
 
 ## 라이선스
-[라이선스 정보] 
+[라이선스 정보]
