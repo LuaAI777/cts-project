@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 const Admin = () => {
+  const navigate = useNavigate();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [config, setConfig] = useState({
     weights: { source: 0.6, content: 0.4 },
     thresholds: {
@@ -19,6 +23,31 @@ const Admin = () => {
   const [showRollbackModal, setShowRollbackModal] = useState(false);
   const [selectedHistoryId, setSelectedHistoryId] = useState(null);
   const [activeTab, setActiveTab] = useState('settings');
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          navigate('/login');
+          return;
+        }
+
+        // 토큰 유효성 검사
+        await axios.get('/api/admin/config', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setIsAuthenticated(true);
+      } catch (error) {
+        localStorage.removeItem('token');
+        navigate('/login');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkAuth();
+  }, [navigate]);
 
   useEffect(() => {
     fetchConfig();
@@ -96,6 +125,18 @@ const Admin = () => {
       console.error('대기 중인 변경 조회 실패:', error);
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
