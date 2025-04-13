@@ -2,9 +2,7 @@ version: '3.8'
 
 services:
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    build: ./backend
     ports:
       - "8000:8000"
     volumes:
@@ -12,9 +10,25 @@ services:
       - ./credentials:/app/credentials
     env_file:
       - ./credentials/.env
+    environment:
+      - YOUTUBE_API_KEY=${YOUTUBE_API_KEY}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     depends_on:
       - redis
     restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - backend
 
   redis:
     image: redis:alpine
