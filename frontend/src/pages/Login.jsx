@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import '../styles/main.css';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -24,61 +25,51 @@ const Login = () => {
       // 관리자 페이지로 이동
       navigate('/admin');
     } catch (error) {
-      setError(error.response?.data?.detail || '로그인에 실패했습니다. 사용자 이름과 비밀번호를 확인하세요.');
+      setError(error.response?.data?.detail || '로그인에 실패했습니다. 아이디와 비밀번호를 확인하세요.');
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            관리자 로그인
-          </h2>
-        </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+    <div className="container">
+      <div className="card" style={{ maxWidth: '400px', margin: '100px auto' }}>
+        <h2 style={{ textAlign: 'center', marginBottom: '2rem', color: 'var(--text-color)' }}>
+          관리자 로그인
+        </h2>
+        <form onSubmit={handleSubmit}>
           {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-              <span className="block sm:inline">{error}</span>
+            <div className="alert alert-error">
+              {error}
             </div>
           )}
-          <div className="rounded-md shadow-sm -space-y-px">
-            <div>
-              <label htmlFor="username" className="sr-only">사용자 이름</label>
-              <input
-                id="username"
-                name="username"
-                type="text"
-                required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                placeholder="사용자 이름"
-                value={formData.username}
-                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-              />
-            </div>
-            <div>
-              <label htmlFor="password" className="sr-only">비밀번호</label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                placeholder="비밀번호"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              />
-            </div>
+          <div className="form-group">
+            <label htmlFor="username" className="form-label">아이디</label>
+            <input
+              id="username"
+              name="username"
+              type="text"
+              required
+              className="input"
+              placeholder="아이디를 입력하세요"
+              value={formData.username}
+              onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+            />
           </div>
-
-          <div>
-            <button
-              type="submit"
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              로그인
-            </button>
+          <div className="form-group">
+            <label htmlFor="password" className="form-label">비밀번호</label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              required
+              className="input"
+              placeholder="비밀번호를 입력하세요"
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+            />
           </div>
+          <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }}>
+            로그인
+          </button>
         </form>
       </div>
     </div>
