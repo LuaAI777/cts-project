@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Security
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, List, Optional
@@ -6,6 +7,10 @@ import os
 from dotenv import load_dotenv
 from modules.youtube import YouTubeAPI
 from modules.evaluator import Evaluator
+from datetime import datetime, timedelta
+import json
+from jose import JWTError, jwt
+from passlib.context import CryptContext
 
 # 환경 변수 로드
 load_dotenv(os.path.join("credentials", ".env"))
@@ -35,6 +40,128 @@ class VideoRequest(BaseModel):
 class SearchRequest(BaseModel):
     query: str
     max_results: Optional[int] = 10
+
+# 관리자 설정 모델
+class AdminConfig(BaseModel):
+    weights: Dict[str, float]
+    thresholds: Dict[str, Dict[str, int]]
+    keywords: Dict[str, List[str]]
+
+# 관리자 히스토리 모델
+class ConfigHistory(BaseModel):
+    timestamp: datetime
+    changes: str
+    user: str
+
+# 관리자 설정 저장소
+admin_config = {
+    "weights": {
+        "source": 0.6,
+        "content": 0.4
+    },
+    "thresholds": {
+        "subscribers": {
+            "high": 1000000,
+            "medium": 100000,
+            "low": 10000
+        },
+        "activity": {
+            "high": 365,
+            "medium": 180,
+            "low": 90
+        }
+    },
+    "keywords": {
+        "required": ["연구", "데이터", "출처"],
+        "suspicious": ["확실", "무조건", "100%"]
+    }
+}
+
+# 설정 변경 히스토리
+config_history = []
+
+# JWT 설정
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+# 비밀번호 해싱
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# 사용자 모델
+class User(BaseModel):
+    username: str
+    email: str
+    full_name: str
+    disabled: bool = False
+    role: str = "user"
+
+class UserInDB(User):
+    hashed_password: str
+
+# 사용자 데이터베이스 (실제 구현에서는 DB 사용)
+users_db = {
+    "admin": {
+        "username": "admin",
+        "email": "admin@example.com",
+        "full_name": "Administrator",
+        "disabled": False,
+        "role": "admin",
+        "hashed_password": pwd_context.hash("admin123")
+    }
+}
+
+# OAuth2 설정
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+# 토큰 생성
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+# 사용자 인증
+async def get_current_user(token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+    user = users_db.get(username)
+    if user is None:
+        raise credentials_exception
+    return UserInDB(**user)
+
+# 관리자 권한 확인
+async def get_current_admin_user(current_user: User = Depends(get_current_user)):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not enough permissions")
+    return current_user
+
+# 로그인 엔드포인트
+@app.post("/token")
+async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    user = users_db.get(form_data.username)
+    if not user or not pwd_context.verify(form_data.password, user["hashed_password"]):
+        raise HTTPException(status_code=400, detail="Incorrect username or password")
+    
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user["username"]}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
 
 @app.get("/")
 async def root():
@@ -159,6 +286,107 @@ def _generate_content_analysis(content_trust: Dict) -> str:
         analysis.append("내용이 편향적일 수 있습니다.")
     
     return " ".join(analysis)
+
+# 관리자 API 엔드포인트
+@app.get("/api/admin/config")
+async def get_admin_config(current_user: User = Depends(get_current_admin_user)):
+    return admin_config
+
+@app.post("/api/admin/config")
+async def update_admin_config(
+    config: AdminConfig,
+    current_user: User = Depends(get_current_admin_user)
+):
+    global admin_config, config_history
+    
+    # 변경 내용 추적
+    changes = []
+    for key, value in config.dict().items():
+        if json.dumps(admin_config[key]) != json.dumps(value):
+            changes.append(f"{key} 변경됨")
+    
+    if changes:
+        # 히스토리 추가
+        config_history.append({
+            "timestamp": datetime.now(),
+            "changes": ", ".join(changes),
+            "user": current_user.username
+        })
+        
+        # 설정 업데이트
+        admin_config = config.dict()
+        
+        return {"message": "설정이 업데이트되었습니다."}
+    else:
+        return {"message": "변경된 설정이 없습니다."}
+
+@app.get("/api/admin/history")
+async def get_config_history(current_user: User = Depends(get_current_admin_user)):
+    return config_history
+
+# 설정 변경 승인 프로세스
+pending_changes = []
+
+@app.post("/api/admin/config/pending")
+async def submit_pending_changes(
+    config: AdminConfig,
+    current_user: User = Depends(get_current_admin_user)
+):
+    pending_changes.append({
+        "config": config.dict(),
+        "submitted_by": current_user.username,
+        "submitted_at": datetime.now(),
+        "status": "pending"
+    })
+    return {"message": "변경 요청이 제출되었습니다."}
+
+@app.post("/api/admin/config/approve/{change_id}")
+async def approve_changes(
+    change_id: int,
+    current_user: User = Depends(get_current_admin_user)
+):
+    if 0 <= change_id < len(pending_changes):
+        change = pending_changes[change_id]
+        if change["status"] == "pending":
+            # 설정 업데이트
+            global admin_config
+            admin_config = change["config"]
+            
+            # 히스토리 추가
+            config_history.append({
+                "timestamp": datetime.now(),
+                "changes": "승인된 변경 적용",
+                "user": current_user.username
+            })
+            
+            # 상태 업데이트
+            change["status"] = "approved"
+            change["approved_by"] = current_user.username
+            change["approved_at"] = datetime.now()
+            
+            return {"message": "변경이 승인되었습니다."}
+    raise HTTPException(status_code=404, detail="변경 요청을 찾을 수 없습니다.")
+
+# 설정 롤백 기능
+@app.post("/api/admin/config/rollback/{history_id}")
+async def rollback_changes(
+    history_id: int,
+    current_user: User = Depends(get_current_admin_user)
+):
+    if 0 <= history_id < len(config_history):
+        # 이전 설정으로 롤백
+        global admin_config
+        admin_config = config_history[history_id]["config"]
+        
+        # 히스토리 추가
+        config_history.append({
+            "timestamp": datetime.now(),
+            "changes": f"롤백: {config_history[history_id]['changes']}",
+            "user": current_user.username
+        })
+        
+        return {"message": "설정이 롤백되었습니다."}
+    raise HTTPException(status_code=404, detail="히스토리를 찾을 수 없습니다.")
 
 if __name__ == "__main__":
     import uvicorn
