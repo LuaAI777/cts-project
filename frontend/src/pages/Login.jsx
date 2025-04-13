@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import '../styles/main.css';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -31,8 +30,8 @@ const Login = () => {
 
   return (
     <div className="container">
-      <div className="card" style={{ maxWidth: '400px', margin: '100px auto' }}>
-        <h2 style={{ textAlign: 'center', marginBottom: '2rem', color: 'var(--text-color)' }}>
+      <div className="card max-w-md mx-auto">
+        <h2 className="text-center text-2xl font-bold mb-8 text-gray-900">
           관리자 로그인
         </h2>
         <form onSubmit={handleSubmit}>
@@ -41,8 +40,8 @@ const Login = () => {
               {error}
             </div>
           )}
-          <div className="form-group">
-            <label htmlFor="username" className="form-label">아이디</label>
+          <div className="mb-4">
+            <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">아이디</label>
             <input
               id="username"
               name="username"
@@ -54,8 +53,8 @@ const Login = () => {
               onChange={(e) => setFormData({ ...formData, username: e.target.value })}
             />
           </div>
-          <div className="form-group">
-            <label htmlFor="password" className="form-label">비밀번호</label>
+          <div className="mb-4">
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">비밀번호</label>
             <input
               id="password"
               name="password"
@@ -67,7 +66,7 @@ const Login = () => {
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
             />
           </div>
-          <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }}>
+          <button type="submit" className="btn btn-primary w-full mt-4">
             로그인
           </button>
         </form>
