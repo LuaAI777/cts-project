@@ -7,7 +7,7 @@ class YouTubeAPI:
     def __init__(self):
         api_key = os.getenv('YOUTUBE_API_KEY')
         if not api_key:
-            raise ValueError("YouTube API 키가 설정되지 않았습니다.")
+            raise ValueError("YouTube API 키가 설정되지 않았습니다. .env 파일에 YOUTUBE_API_KEY를 설정해주세요.")
         
         self.youtube = build('youtube', 'v3', developerKey=api_key)
 
@@ -27,22 +27,6 @@ class YouTubeAPI:
             snippet = video['snippet']
             statistics = video['statistics']
 
-            # 채널 정보 조회
-            channel_response = self.youtube.channels().list(
-                part='snippet,statistics',
-                id=snippet['channelId']
-            ).execute()
-
-            channel = channel_response['items'][0]
-            channel_statistics = channel['statistics']
-
-            # 채널 생성일 계산
-            channel_created = datetime.strptime(
-                channel['snippet']['publishedAt'],
-                '%Y-%m-%dT%H:%M:%SZ'
-            ).replace(tzinfo=timezone.utc)
-            channel_age = (datetime.now(timezone.utc) - channel_created).days
-
             return {
                 'title': snippet['title'],
                 'description': snippet['description'],
@@ -52,8 +36,7 @@ class YouTubeAPI:
                 'views': int(statistics.get('viewCount', 0)),
                 'likes': int(statistics.get('likeCount', 0)),
                 'comments': int(statistics.get('commentCount', 0)),
-                'subscriber_count': int(channel_statistics.get('subscriberCount', 0)),
-                'channel_age': channel_age
+                'thumbnail_url': snippet['thumbnails']['high']['url']
             }
 
         except Exception as e:

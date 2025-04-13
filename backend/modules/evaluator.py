@@ -121,27 +121,32 @@ class Evaluator:
 
     def _calculate_subscriber_score(self, subscriber_count: int) -> float:
         """구독자 수 점수 계산"""
-        if subscriber_count >= 1000000:
-            return 1.0
-        elif subscriber_count >= 100000:
-            return 0.8
-        elif subscriber_count >= 10000:
-            return 0.6
-        elif subscriber_count >= 1000:
-            return 0.4
-        else:
-            return 0.2
+        thresholds = {
+            1000000: 1.0,
+            100000: 0.8,
+            10000: 0.6,
+            1000: 0.4,
+            0: 0.2
+        }
+        
+        for threshold, score in sorted(thresholds.items(), reverse=True):
+            if subscriber_count >= threshold:
+                return score
+        return 0.0
 
     def _calculate_activity_score(self, channel_age: int) -> float:
         """채널 활동 기간 점수 계산"""
-        if channel_age >= 365 * 5:  # 5년 이상
-            return 1.0
-        elif channel_age >= 365 * 3:  # 3년 이상
-            return 0.8
-        elif channel_age >= 365:  # 1년 이상
-            return 0.6
-        else:
-            return 0.4
+        thresholds = {
+            365 * 5: 1.0,  # 5년 이상
+            365 * 3: 0.8,  # 3년 이상
+            365: 0.6,      # 1년 이상
+            0: 0.4
+        }
+        
+        for threshold, score in sorted(thresholds.items(), reverse=True):
+            if channel_age >= threshold:
+                return score
+        return 0.0
 
     def _calculate_engagement_score(self, likes: int, comments: int, views: int) -> float:
         """참여도 점수 계산"""
@@ -182,8 +187,21 @@ class Evaluator:
 
     def _analyze_sentiment(self, title: str, description: str) -> float:
         """감정 분석"""
-        # TODO: 실제 감정 분석 모델 구현
-        return 0.8
+        # 긍정적인 단어 목록
+        positive_words = ['연구', '데이터', '출처', '검증', '분석', '실험']
+        # 부정적인 단어 목록
+        negative_words = ['확실', '무조건', '100%', '절대', '완벽']
+        
+        text = f"{title} {description}"
+        positive_count = sum(1 for word in positive_words if word in text)
+        negative_count = sum(1 for word in negative_words if word in text)
+        
+        if positive_count > negative_count:
+            return 1.0
+        elif positive_count == negative_count:
+            return 0.5
+        else:
+            return 0.0
 
     def _calculate_weighted_score(self, scores: List[Tuple[float, float]]) -> float:
         """가중 평균 점수 계산"""

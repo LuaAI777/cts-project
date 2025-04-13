@@ -13,7 +13,7 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 # 환경 변수 로드
-load_dotenv(os.path.join("credentials", ".env"))
+load_dotenv(".env")
 
 app = FastAPI(
     title="CTS API",
@@ -79,6 +79,9 @@ admin_config = {
 
 # 설정 변경 히스토리
 config_history = []
+
+# 대기 중인 변경 사항
+pending_changes = []
 
 # JWT 설정
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key")
@@ -177,7 +180,21 @@ async def env_check():
 
 @app.get("/youtube/video/{video_id}")
 async def get_video_info(video_id: str):
-    return youtube_api.get_video_info(video_id)
+    try:
+        video_info = youtube_api.get_video_info(video_id)
+        return {
+            "title": video_info["title"],
+            "channelTitle": video_info["channel_title"],
+            "thumbnail": video_info["thumbnail_url"],
+            "viewCount": video_info["views"],
+            "likeCount": video_info["likes"],
+            "commentCount": video_info["comments"],
+            "publishedAt": video_info["published_at"],
+            "description": video_info["description"],
+            "channelId": video_info["channel_id"]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/search")
 async def search_videos(request: SearchRequest):
@@ -239,53 +256,25 @@ async def evaluate_video(request: VideoRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-def _generate_source_analysis(source_trust: Dict) -> str:
-    """출처/채널 분석 결과 생성"""
-    analysis = []
-    
-    if source_trust["subscriber_score"] >= 0.8:
-        analysis.append("채널의 구독자 수가 매우 많습니다.")
-    elif source_trust["subscriber_score"] >= 0.6:
-        analysis.append("채널의 구독자 수가 적절합니다.")
+def _generate_source_analysis(score: float) -> str:
+    if score >= 0.8:
+        return "출처가 매우 신뢰할 수 있습니다."
+    elif score >= 0.6:
+        return "출처가 대체로 신뢰할 수 있습니다."
+    elif score >= 0.4:
+        return "출처의 신뢰도가 보통입니다."
     else:
-        analysis.append("채널의 구독자 수가 적습니다.")
-    
-    if source_trust["activity_score"] >= 0.8:
-        analysis.append("채널의 활동 기간이 매우 깁니다.")
-    elif source_trust["activity_score"] >= 0.6:
-        analysis.append("채널의 활동 기간이 적절합니다.")
-    else:
-        analysis.append("채널의 활동 기간이 짧습니다.")
-    
-    if source_trust["engagement_score"] >= 0.8:
-        analysis.append("시청자 참여도가 매우 높습니다.")
-    elif source_trust["engagement_score"] >= 0.6:
-        analysis.append("시청자 참여도가 적절합니다.")
-    else:
-        analysis.append("시청자 참여도가 낮습니다.")
-    
-    return " ".join(analysis)
+        return "출처의 신뢰도가 낮습니다."
 
-def _generate_content_analysis(content_trust: Dict) -> str:
-    """내용 분석 결과 생성"""
-    analysis = []
-    
-    if content_trust["title_score"] >= 0.8:
-        analysis.append("제목이 적절합니다.")
+def _generate_content_analysis(score: float) -> str:
+    if score >= 0.8:
+        return "내용이 매우 신뢰할 수 있습니다."
+    elif score >= 0.6:
+        return "내용이 대체로 신뢰할 수 있습니다."
+    elif score >= 0.4:
+        return "내용의 신뢰도가 보통입니다."
     else:
-        analysis.append("제목이 너무 짧거나 길 수 있습니다.")
-    
-    if content_trust["description_score"] >= 0.8:
-        analysis.append("설명이 충분합니다.")
-    else:
-        analysis.append("설명이 부족하거나 너무 깁니다.")
-    
-    if content_trust["sentiment_score"] >= 0.8:
-        analysis.append("내용이 중립적이고 균형 잡혀 있습니다.")
-    else:
-        analysis.append("내용이 편향적일 수 있습니다.")
-    
-    return " ".join(analysis)
+        return "내용의 신뢰도가 낮습니다."
 
 # 관리자 API 엔드포인트
 @app.get("/api/admin/config")
@@ -325,47 +314,45 @@ async def get_config_history(current_user: User = Depends(get_current_admin_user
     return config_history
 
 # 설정 변경 승인 프로세스
-pending_changes = []
-
 @app.post("/api/admin/config/pending")
-async def submit_pending_changes(
-    config: AdminConfig,
-    current_user: User = Depends(get_current_admin_user)
-):
-    pending_changes.append({
-        "config": config.dict(),
-        "submitted_by": current_user.username,
-        "submitted_at": datetime.now(),
-        "status": "pending"
-    })
+async def submit_pending_changes(change: dict):
+    global pending_changes
+    pending_changes.append(change)
     return {"message": "변경 요청이 제출되었습니다."}
 
-@app.post("/api/admin/config/approve/{change_id}")
-async def approve_changes(
-    change_id: int,
-    current_user: User = Depends(get_current_admin_user)
-):
-    if 0 <= change_id < len(pending_changes):
-        change = pending_changes[change_id]
-        if change["status"] == "pending":
-            # 설정 업데이트
-            global admin_config
-            admin_config = change["config"]
-            
-            # 히스토리 추가
-            config_history.append({
-                "timestamp": datetime.now(),
-                "changes": "승인된 변경 적용",
-                "user": current_user.username
-            })
-            
-            # 상태 업데이트
-            change["status"] = "approved"
-            change["approved_by"] = current_user.username
-            change["approved_at"] = datetime.now()
-            
-            return {"message": "변경이 승인되었습니다."}
-    raise HTTPException(status_code=404, detail="변경 요청을 찾을 수 없습니다.")
+@app.get("/api/admin/config/pending")
+async def get_pending_changes(current_user: User = Depends(get_current_admin_user)):
+    return pending_changes
+
+@app.post("/api/admin/config/approve")
+async def approve_changes(change_id: str, current_user: User = Depends(get_current_admin_user)):
+    try:
+        # 대기 중인 변경 사항에서 해당 ID의 변경 사항 찾기
+        change_to_approve = None
+        for change in pending_changes:
+            if change.get("id") == change_id:
+                change_to_approve = change
+                break
+        
+        if not change_to_approve:
+            raise HTTPException(status_code=404, detail="변경 사항을 찾을 수 없습니다.")
+        
+        # 설정 업데이트
+        admin_config.update(change_to_approve["config"])
+        
+        # 변경 이력에 추가
+        config_history.append({
+            "timestamp": datetime.now(),
+            "changes": json.dumps(change_to_approve["config"], ensure_ascii=False),
+            "user": current_user.username
+        })
+        
+        # 대기 중인 변경 사항에서 제거
+        pending_changes = [change for change in pending_changes if change.get("id") != change_id]
+        
+        return {"message": "변경 사항이 승인되었습니다."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # 설정 롤백 기능
 @app.post("/api/admin/config/rollback/{history_id}")
@@ -387,6 +374,176 @@ async def rollback_changes(
         
         return {"message": "설정이 롤백되었습니다."}
     raise HTTPException(status_code=404, detail="히스토리를 찾을 수 없습니다.")
+
+# 설정 파일 경로
+SETTING_FILE = "setting.json"
+HISTORY_FILE = "setting_history.json"
+
+# 기본 설정 구조
+DEFAULT_SETTING = {
+    "weights": {
+        "source": 0.6,
+        "content": 0.4
+    },
+    "thresholds": {
+        "subscribers": {
+            "high": 1000000,
+            "medium": 100000,
+            "low": 10000
+        },
+        "activity": {
+            "high": 365,
+            "medium": 180,
+            "low": 90
+        }
+    },
+    "keywords": {
+        "required": ["연구", "데이터", "출처"],
+        "suspicious": ["확실", "무조건", "100%"]
+    }
+}
+
+# 설정 파일 초기화
+def init_setting_files():
+    if not os.path.exists(SETTING_FILE):
+        with open(SETTING_FILE, 'w', encoding='utf-8') as f:
+            json.dump(DEFAULT_SETTING, f, ensure_ascii=False, indent=2)
+    
+    if not os.path.exists(HISTORY_FILE):
+        with open(HISTORY_FILE, 'w', encoding='utf-8') as f:
+            json.dump([], f, ensure_ascii=False, indent=2)
+
+# 설정 파일 읽기
+def read_setting():
+    with open(SETTING_FILE, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+# 설정 파일 쓰기
+def write_setting(setting):
+    with open(SETTING_FILE, 'w', encoding='utf-8') as f:
+        json.dump(setting, f, ensure_ascii=False, indent=2)
+
+# 이력 파일 읽기
+def read_history():
+    with open(HISTORY_FILE, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+# 이력 파일 쓰기
+def write_history(history):
+    with open(HISTORY_FILE, 'w', encoding='utf-8') as f:
+        json.dump(history, f, ensure_ascii=False, indent=2)
+
+# 이력 추가
+def add_history_entry(change, user):
+    history = read_history()
+    history.append({
+        "timestamp": datetime.now().isoformat(),
+        "user": user,
+        "changes": change
+    })
+    write_history(history)
+
+# 설정 업데이트
+def update_setting(new_setting, user):
+    current_setting = read_setting()
+    write_setting(new_setting)
+    add_history_entry({
+        "old": current_setting,
+        "new": new_setting
+    }, user)
+
+# 모델 정의
+class Setting(BaseModel):
+    weights: Optional[Dict[str, float]] = None
+    thresholds: Optional[Dict[str, Dict[str, int]]] = None
+    keywords: Optional[Dict[str, List[str]]] = None
+
+    class Config:
+        extra = "allow"  # 추가 필드를 허용
+
+class HistoryEntry(BaseModel):
+    timestamp: str
+    user: str
+    changes: dict
+
+# API 엔드포인트
+@app.get("/api/admin/config")
+async def get_config():
+    return read_setting()
+
+@app.post("/api/admin/config")
+async def update_config(setting: Setting, token: str = Depends(oauth2_scheme)):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username = payload.get("sub")
+        update_setting(setting.dict(), username)
+        return {"message": "설정이 업데이트되었습니다."}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/api/admin/history")
+async def get_history():
+    return read_history()
+
+@app.post("/api/admin/config/rollback")
+async def rollback_config(entry: HistoryEntry, token: str = Depends(oauth2_scheme)):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username = payload.get("sub")
+        update_setting(entry.changes["old"], username)
+        return {"message": "설정이 롤백되었습니다."}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+# 서버 시작 시 설정 파일 초기화
+init_setting_files()
+
+@app.get("/evaluate/{video_id}")
+async def evaluate_video(video_id: str):
+    try:
+        # 비디오 정보 가져오기
+        video_info = youtube_api.get_video_info(video_id)
+        
+        # 신뢰도 평가
+        source_trust = evaluator.evaluate_source_trust(video_info)
+        content_trust = evaluator.evaluate_content_trust(video_info)
+        final_score = evaluator.calculate_final_score(source_trust, content_trust)
+        
+        return {
+            "video_info": video_info,
+            "trust_analysis": {
+                "score": source_trust["total_score"],
+                "details": _generate_source_analysis(source_trust["total_score"])
+            },
+            "content_analysis": {
+                "score": content_trust["total_score"],
+                "details": _generate_content_analysis(content_trust["total_score"])
+            },
+            "final_score": final_score["final_score"]
+        }
+    except Exception as e:
+        print(f"Error in evaluate_video: {str(e)}")  # 디버깅을 위한 로그 추가
+        raise HTTPException(status_code=500, detail=str(e))
+
+def _generate_source_analysis(score: float) -> str:
+    if score >= 0.8:
+        return "출처가 매우 신뢰할 수 있습니다."
+    elif score >= 0.6:
+        return "출처가 대체로 신뢰할 수 있습니다."
+    elif score >= 0.4:
+        return "출처의 신뢰도가 보통입니다."
+    else:
+        return "출처의 신뢰도가 낮습니다."
+
+def _generate_content_analysis(score: float) -> str:
+    if score >= 0.8:
+        return "내용이 매우 신뢰할 수 있습니다."
+    elif score >= 0.6:
+        return "내용이 대체로 신뢰할 수 있습니다."
+    elif score >= 0.4:
+        return "내용의 신뢰도가 보통입니다."
+    else:
+        return "내용의 신뢰도가 낮습니다."
 
 if __name__ == "__main__":
     import uvicorn
