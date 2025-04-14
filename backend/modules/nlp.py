@@ -32,44 +32,47 @@ class ContentAnalyzer:
         }
 
     def analyze(self, video_info: Dict) -> Dict:
-        """
-        비디오의 내용을 분석합니다.
-        """
-        title_score = self._analyze_title(video_info["title"])
-        description_score = self._analyze_description(video_info["description"])
-        sentiment_score = self._analyze_sentiment(video_info["title"], video_info["description"])
-        
-        # 가중치 적용
-        weights = {
-            "title": 0.3,
-            "description": 0.5,
-            "sentiment": 0.2
-        }
-        
-        total_score = (
-            title_score * weights["title"] +
-            description_score * weights["description"] +
-            sentiment_score * weights["sentiment"]
-        )
-        
-        return {
-            "title_score": title_score,
-            "description_score": description_score,
-            "sentiment_score": sentiment_score,
-            "total_score": total_score
-        }
+        """비디오 내용 분석"""
+        try:
+            # 각 요소별 점수 계산
+            title_score = self._analyze_title(video_info.get('title', ''))
+            description_score = self._analyze_description(video_info.get('description', ''))
+            sentiment_score = self._analyze_sentiment(video_info.get('title', ''), video_info.get('description', ''))
+            
+            # 가중치 적용
+            weights = self.admin_config['weights']
+            weighted_scores = {
+                'title': title_score * weights['title'],
+                'description': description_score * weights['description'],
+                'sentiment': sentiment_score * weights['sentiment']
+            }
+            
+            # 총점 계산 (0~1 범위)
+            total_score = sum(weighted_scores.values())
+            
+            logger.info(f"[NLP] 내용 분석 완료: {total_score}")
+            
+            return {
+                'title_score': title_score,
+                'description_score': description_score,
+                'sentiment_score': sentiment_score,
+                'total_score': total_score
+            }
+        except Exception as e:
+            logger.error(f"[NLP] 내용 분석 중 오류 발생: {str(e)}")
+            raise
 
     def _analyze_title(self, title: str) -> float:
         """
         제목을 분석합니다.
         """
         if not title:
-            return 0.3
+            return 30.0
             
         # 제목 길이 점수
         length = len(title)
         if length < 10 or length > 100:
-            return 0.2
+            return 20.0
             
         # 키워드 분석
         keyword_score = self._analyze_keywords(title)
@@ -77,21 +80,25 @@ class ContentAnalyzer:
         # 감정적 표현 체크
         emotional_count = sum(title.count(keyword) for keyword in self.emotion_keywords["negative"])
         if emotional_count > 0:
-            return 0.2
+            return max(20.0, keyword_score * 0.5)  # 감정적 표현이 있으면 점수 50% 감소
             
-        return max(0.3, keyword_score)
+        return max(30.0, keyword_score)
 
     def _analyze_description(self, description: str) -> float:
         """
         설명을 분석합니다.
         """
         if not description:
-            return 0.3
+            return 30.0
             
         # 설명 길이 점수
         length = len(description)
         if length < 100 or length > 5000:
-            return 0.2
+            return 20.0
+            
+        # 광고/멤버십 링크 체크
+        if "광고문의" in description or "멤버십" in description or "business@" in description:
+            return 30.0
             
         # 키워드 분석
         keyword_score = self._analyze_keywords(description)
@@ -99,9 +106,9 @@ class ContentAnalyzer:
         # 전문성 지표 체크
         professional_count = sum(description.count(keyword) for keyword in self.trust_keywords["positive"])
         if professional_count > 0:
-            return min(1.0, 0.6 + (professional_count * 0.1))
+            return min(80.0, 50.0 + (professional_count * 5.0))  # 전문성 점수 상한선 80점
             
-        return max(0.3, keyword_score)
+        return max(30.0, keyword_score)
 
     def _analyze_sentiment(self, title: str, description: str) -> float:
         """
@@ -117,18 +124,29 @@ class ContentAnalyzer:
         positive_emotion = sum(text.count(keyword) for keyword in self.emotion_keywords["positive"])
         negative_emotion = sum(text.count(keyword) for keyword in self.emotion_keywords["negative"])
         
-        # 점수 계산
-        trust_score = (positive_count - negative_count) / (positive_count + negative_count + 1)
-        emotion_score = (positive_emotion - negative_emotion) / (positive_emotion + negative_emotion + 1)
+        # 신뢰도 점수 계산 (0~1)
+        total_trust = positive_count + negative_count
+        trust_score = 0.5  # 기본 점수
+        if total_trust > 0:
+            trust_score = positive_count / total_trust
+            
+        # 감정 점수 계산 (0~1)
+        total_emotion = positive_emotion + negative_emotion
+        emotion_score = 0.5  # 기본 점수
+        if total_emotion > 0:
+            emotion_score = positive_emotion / total_emotion
+            
+        # 최종 점수 계산 (가중치 적용)
+        final_score = (trust_score * 0.7 + emotion_score * 0.3) * 100  # 0~100 범위로 변환
         
-        return (trust_score * 0.7 + emotion_score * 0.3 + 1) / 2  # 0~1 사이로 정규화
+        return max(0.0, min(100.0, final_score))
 
     def _analyze_keywords(self, text: str) -> float:
         """
         텍스트의 키워드를 분석합니다.
         """
         if not text:
-            return 0.5
+            return 50.0
             
         # 키워드 카운트
         positive_count = sum(text.count(keyword) for keyword in self.trust_keywords["positive"])
@@ -138,8 +156,19 @@ class ContentAnalyzer:
         positive_emotion = sum(text.count(keyword) for keyword in self.emotion_keywords["positive"])
         negative_emotion = sum(text.count(keyword) for keyword in self.emotion_keywords["negative"])
         
-        # 점수 계산
-        trust_score = (positive_count - negative_count) / (positive_count + negative_count + 1)
-        emotion_score = (positive_emotion - negative_emotion) / (positive_emotion + negative_emotion + 1)
+        # 신뢰도 점수 계산 (0~1)
+        total_trust = positive_count + negative_count
+        trust_score = 0.5  # 기본 점수
+        if total_trust > 0:
+            trust_score = positive_count / total_trust
+            
+        # 감정 점수 계산 (0~1)
+        total_emotion = positive_emotion + negative_emotion
+        emotion_score = 0.5  # 기본 점수
+        if total_emotion > 0:
+            emotion_score = positive_emotion / total_emotion
+            
+        # 최종 점수 계산 (가중치 적용)
+        final_score = (trust_score * 0.6 + emotion_score * 0.4) * 100  # 0~100 범위로 변환
         
-        return (trust_score * 0.6 + emotion_score * 0.4 + 1) / 2  # 0~1 사이로 정규화 
+        return max(0.0, min(100.0, final_score)) 

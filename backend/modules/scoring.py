@@ -4,17 +4,17 @@ class ScoreCalculator:
     def __init__(self):
         # 가중치 설정 - 내용 신뢰도에 더 높은 가중치 부여
         self.weights = {
-            "trust": 0.4,  # 출처/채널 신뢰도 가중치 감소
-            "content": 0.6  # 내용 신뢰도 가중치 증가
+            "trust": 0.4,  # 출처/채널 신뢰도 가중치
+            "content": 0.6  # 내용 신뢰도 가중치
         }
         
-        # 등급 기준 - 더 엄격하게 조정
+        # 등급 기준 - 0~100점 기준으로 조정
         self.grade_thresholds = {
-            "A": 0.9,  # 매우 신뢰할 수 있음 (상향)
-            "B": 0.7,  # 신뢰할 수 있음 (상향)
-            "C": 0.5,  # 보통 (상향)
-            "D": 0.3,  # 주의 필요 (상향)
-            "F": 0.0   # 신뢰할 수 없음
+            "A": 90,  # 매우 신뢰할 수 있음
+            "B": 70,  # 신뢰할 수 있음
+            "C": 50,  # 보통
+            "D": 30,  # 주의 필요
+            "F": 0    # 신뢰할 수 없음
         }
 
     def calculate_score(self, trust_score: float, content_score: float) -> float:
@@ -22,27 +22,31 @@ class ScoreCalculator:
         종합 점수를 계산합니다.
         
         Args:
-            trust_score (float): 출처/채널 신뢰도 점수
-            content_score (float): 내용 신뢰도 점수
+            trust_score (float): 출처/채널 신뢰도 점수 (0~100)
+            content_score (float): 내용 신뢰도 점수 (0~100)
             
         Returns:
-            float: 종합 점수 (0~1)
+            float: 종합 점수 (0~100)
         """
         # 내용 신뢰도 점수가 낮으면 전체 점수도 크게 감소
-        if content_score < 0.3:
+        if content_score < 30:
             return content_score * 0.7  # 내용 신뢰도가 낮으면 70%만 반영
         
-        return (
-            trust_score * self.weights["trust"] +
-            content_score * self.weights["content"]
-        )
+        # 가중치 적용 후 정규화
+        weighted_trust = trust_score * self.weights["trust"]
+        weighted_content = content_score * self.weights["content"]
+        
+        # 가중치의 합이 1이므로, 합산된 점수는 0~100 범위를 유지
+        total_score = weighted_trust + weighted_content
+        
+        return min(100, max(0, total_score))
 
     def get_grade(self, score: float) -> str:
         """
         점수에 따른 등급을 반환합니다.
         
         Args:
-            score (float): 종합 점수
+            score (float): 종합 점수 (0~100)
             
         Returns:
             str: 등급 (A, B, C, D, F)

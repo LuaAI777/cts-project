@@ -73,45 +73,73 @@ class YouTubeAPI:
             statistics = video['statistics']
 
             # 채널 정보 조회
-            channel_response = self.youtube.channels().list(
-                part='snippet,statistics',
-                id=snippet['channelId']
-            ).execute()
-
-            if not channel_response['items']:
-                logger.warning(f"채널을 찾을 수 없음: {snippet['channelId']}")
-                raise ValueError("채널을 찾을 수 없습니다.")
-
-            channel = channel_response['items'][0]
-            channel_stats = channel['statistics']
-
-            # 채널 나이 계산
             try:
-                channel_published = datetime.fromisoformat(
-                    channel['snippet']['publishedAt'].replace('Z', '+00:00')
-                ).replace(tzinfo=timezone.utc)
-            except ValueError:
-                # ISO 형식이 아닌 경우를 위한 대체 처리
-                channel_published = datetime.strptime(
-                    channel['snippet']['publishedAt'].split('.')[0] + 'Z',
-                    '%Y-%m-%dT%H:%M:%SZ'
-                ).replace(tzinfo=timezone.utc)
+                channel_response = self.youtube.channels().list(
+                    part='snippet,statistics',
+                    id=snippet['channelId']
+                ).execute()
+
+                if not channel_response['items']:
+                    logger.warning(f"채널을 찾을 수 없음: {snippet['channelId']}")
+                    raise ValueError("채널을 찾을 수 없습니다.")
+
+                channel = channel_response['items'][0]
+                channel_stats = channel['statistics']
+
+                # 채널 나이 계산
+                try:
+                    channel_published = datetime.fromisoformat(
+                        channel['snippet']['publishedAt'].replace('Z', '+00:00')
+                    ).replace(tzinfo=timezone.utc)
+                except ValueError:
+                    # ISO 형식이 아닌 경우를 위한 대체 처리
+                    channel_published = datetime.strptime(
+                        channel['snippet']['publishedAt'].split('.')[0] + 'Z',
+                        '%Y-%m-%dT%H:%M:%SZ'
+                    ).replace(tzinfo=timezone.utc)
+                
+                channel_age = (datetime.now(timezone.utc) - channel_published).days
+                
+                # 채널 통계 정보 처리
+                subscriber_count = int(channel_stats.get('subscriberCount', 0))
+                video_count = int(channel_stats.get('videoCount', 0))
+                
+            except HttpError as e:
+                logger.warning(f"채널 정보 조회 실패: {str(e)}")
+                # 채널 정보가 없을 경우 기본값 설정
+                channel_age = 0
+                subscriber_count = 0
+                video_count = 0
+
+            # 비디오 통계 정보 처리
+            views = int(statistics.get('viewCount', 0))
+            likes = int(statistics.get('likeCount', 0))
+            comments = int(statistics.get('commentCount', 0))
             
-            channel_age = (datetime.now(timezone.utc) - channel_published).days
+            # 썸네일 URL 처리
+            thumbnail_url = None
+            if 'thumbnails' in snippet:
+                if 'high' in snippet['thumbnails']:
+                    thumbnail_url = snippet['thumbnails']['high']['url']
+                elif 'medium' in snippet['thumbnails']:
+                    thumbnail_url = snippet['thumbnails']['medium']['url']
+                elif 'default' in snippet['thumbnails']:
+                    thumbnail_url = snippet['thumbnails']['default']['url']
 
             result = {
                 'video_id': video_id,
-                'title': snippet['title'],
-                'description': snippet['description'],
-                'channel_id': snippet['channelId'],
-                'channel_title': snippet['channelTitle'],
-                'published_at': snippet['publishedAt'],
-                'views': int(statistics.get('viewCount', 0)),
-                'likes': int(statistics.get('likeCount', 0)),
-                'comments': int(statistics.get('commentCount', 0)),
-                'thumbnail_url': snippet['thumbnails']['high']['url'],
-                'subscriber_count': int(channel_stats.get('subscriberCount', 0)),
-                'channel_age': channel_age
+                'title': snippet.get('title', ''),
+                'description': snippet.get('description', ''),
+                'channel_id': snippet.get('channelId', ''),
+                'channel_title': snippet.get('channelTitle', ''),
+                'published_at': snippet.get('publishedAt', ''),
+                'views': views,
+                'likes': likes,
+                'comments': comments,
+                'thumbnail_url': thumbnail_url,
+                'subscriber_count': subscriber_count,
+                'channel_age': channel_age,
+                'video_count': video_count
             }
 
             logger.info(f"비디오 정보 조회 성공: {video_id}")

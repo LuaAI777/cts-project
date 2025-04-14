@@ -45,11 +45,11 @@ const ScoreCard = ({ evaluation }) => {
         <div className="score-bar">
           <div 
             className="score-progress"
-            style={{ width: `${evaluation.total_score * 100}%` }}
+            style={{ width: `${evaluation.total_score}%` }}
           />
         </div>
         <span className="score-value">
-          {Math.round(evaluation.total_score * 100)}점
+          {Math.round(evaluation.total_score)}점
         </span>
       </div>
 
@@ -57,13 +57,13 @@ const ScoreCard = ({ evaluation }) => {
         <div className="detail-item">
           <span className="detail-label">출처/채널 신뢰도</span>
           <span className="detail-value">
-            {Math.round(evaluation.trust_analysis.total_score * 100)}점
+            {Math.round(evaluation.trust_analysis.total_score)}점
           </span>
         </div>
         <div className="detail-item">
           <span className="detail-label">내용 신뢰도</span>
           <span className="detail-value">
-            {Math.round(evaluation.content_analysis.total_score * 100)}점
+            {Math.round(evaluation.content_analysis.total_score)}점
           </span>
         </div>
       </div>
