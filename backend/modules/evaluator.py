@@ -37,22 +37,21 @@ class ContentEvaluator:
             content_score = content_analysis["total_score"]
             
             # 종합 점수 계산
-            final_score = self.score_calculator.calculate_score(
-                trust_score=trust_score,
-                content_score=content_score
-            )
+            evaluator = Evaluator()
+            final_result = evaluator.calculate_final_score(trust_analysis, content_analysis)
             
             return {
                 "video_info": video_info,
                 "trust_analysis": trust_analysis,
                 "content_analysis": content_analysis,
-                "final_score": final_score,
-                "grade": self.score_calculator.get_grade(final_score),
+                "final_score": final_result["final_score"],
+                "grade": self.score_calculator.get_grade(final_result["final_score"]),
                 "grade_description": self.score_calculator.get_grade_description(
-                    self.score_calculator.get_grade(final_score)
+                    self.score_calculator.get_grade(final_result["final_score"])
                 )
             }
         except Exception as e:
+            logger.error(f"평가 중 오류 발생: {str(e)}")
             return {"error": f"평가 중 오류 발생: {str(e)}"}
 
 class Evaluator:
@@ -92,6 +91,42 @@ class Evaluator:
         logger.info("평가기가 초기화되었습니다.")
         logger.debug(f"관리자 설정: {self.admin_config}")
 
+    def calculate_final_score(self, source_trust: Dict, content_trust: Dict) -> Dict:
+        """종합 점수 계산"""
+        try:
+            if not source_trust or not content_trust:
+                raise ValueError("[SCORING] 출처 신뢰도와 내용 신뢰도 데이터가 필요합니다.")
+                
+            if 'total_score' not in source_trust or 'total_score' not in content_trust:
+                raise ValueError("[SCORING] 신뢰도 데이터에 총점이 포함되어 있지 않습니다.")
+                
+            # 가중치 적용
+            weights = self.admin_config['weights']
+            
+            # 각 점수는 이미 0~1 범위
+            source_score = source_trust['total_score']
+            content_score = content_trust['total_score']
+            
+            # 각 점수에 가중치를 곱하고 합산
+            weighted_scores = {
+                'source': source_score * weights['source'],
+                'content': content_score * weights['content']
+            }
+            
+            # 가중치의 합이 1이므로, 합산된 점수는 0~1 범위
+            final_score = sum(weighted_scores.values()) * 100  # 0~100 범위로 변환
+            
+            logger.info(f"[SCORING] 종합 점수 계산 완료: {final_score}")
+            
+            return {
+                'source_trust': source_trust,
+                'content_trust': content_trust,
+                'final_score': final_score  # 0~100 범위로 반환
+            }
+        except Exception as e:
+            logger.error(f"[SCORING] 종합 점수 계산 중 오류 발생: {str(e)}")
+            raise
+
     def evaluate_source_trust(self, video_data: Dict) -> Dict:
         """출처/채널 신뢰도 평가"""
         try:
@@ -105,14 +140,14 @@ class Evaluator:
             
             logger.info(f"[TRUST] 출처 신뢰도 평가 시작: {video_data['channel_id']}")
             
-            # 각 점수 계산 (0~100점)
-            subscriber_score = self._calculate_subscriber_score(video_data['subscriber_count'])
-            activity_score = self._calculate_activity_score(video_data['channel_age'])
+            # 각 점수 계산 (0~1점)
+            subscriber_score = self._calculate_subscriber_score(video_data['subscriber_count']) / 100
+            activity_score = self._calculate_activity_score(video_data['channel_age']) / 100
             engagement_score = self._calculate_engagement_score(
                 video_data['likes'],
                 video_data['comments'],
                 video_data['views']
-            )
+            ) / 100
             
             # 가중치 적용
             source_weights = {
@@ -121,20 +156,23 @@ class Evaluator:
                 'engagement': 0.5
             }
             
-            # 가중 평균 계산
-            total_score = (
-                subscriber_score * source_weights['subscriber'] +
-                activity_score * source_weights['activity'] +
-                engagement_score * source_weights['engagement']
-            )
+            # 각 점수에 가중치를 곱하고 합산
+            weighted_scores = {
+                'subscriber': subscriber_score * source_weights['subscriber'],
+                'activity': activity_score * source_weights['activity'],
+                'engagement': engagement_score * source_weights['engagement']
+            }
+            
+            # 가중치의 합이 1이므로, 합산된 점수는 0~1 범위
+            total_score = sum(weighted_scores.values()) * 100  # 0~100 범위로 변환
             
             logger.info(f"[TRUST] 출처 신뢰도 평가 완료: {total_score}")
             
             return {
-                'subscriber_score': subscriber_score,
-                'activity_score': activity_score,
-                'engagement_score': engagement_score,
-                'total_score': total_score
+                'subscriber_score': subscriber_score,  # 0~1 범위로 변환
+                'activity_score': activity_score,  # 0~1 범위로 변환
+                'engagement_score': engagement_score,  # 0~1 범위로 변환
+                'total_score': total_score  # 0~100 범위로 반환
             }
         except ValueError as e:
             logger.error(f"[TRUST] 입력값 검증 오류: {str(e)}")
@@ -156,10 +194,10 @@ class Evaluator:
             
             logger.info(f"[NLP] 내용 신뢰도 평가 시작: {video_data['video_id']}")
             
-            # 각 점수 계산 (0~100점)
-            title_score = self._analyze_title(video_data['title'])
-            description_score = self._analyze_description(video_data['description'])
-            sentiment_score = self._analyze_sentiment(video_data['title'], video_data['description'])
+            # 각 점수 계산 (0~1점)
+            title_score = self._analyze_title(video_data['title']) / 100
+            description_score = self._analyze_description(video_data['description']) / 100
+            sentiment_score = self._analyze_sentiment(video_data['title'], video_data['description']) / 100
             
             # 가중치 적용
             content_weights = {
@@ -168,61 +206,29 @@ class Evaluator:
                 'sentiment': 0.3
             }
             
-            # 가중 평균 계산
-            total_score = (
-                title_score * content_weights['title'] +
-                description_score * content_weights['description'] +
-                sentiment_score * content_weights['sentiment']
-            )
+            # 각 점수에 가중치를 곱하고 합산
+            weighted_scores = {
+                'title': title_score * content_weights['title'],
+                'description': description_score * content_weights['description'],
+                'sentiment': sentiment_score * content_weights['sentiment']
+            }
+            
+            # 가중치의 합이 1이므로, 합산된 점수는 0~100 범위
+            total_score = sum(weighted_scores.values())
             
             logger.info(f"[NLP] 내용 신뢰도 평가 완료: {total_score}")
             
             return {
-                'title_score': title_score,
-                'description_score': description_score,
-                'sentiment_score': sentiment_score,
-                'total_score': total_score
+                'title_score': title_score,  # 0~100 범위로 반환
+                'description_score': description_score,  # 0~100 범위로 반환
+                'sentiment_score': sentiment_score,  # 0~100 범위로 반환
+                'total_score': total_score * 100  # 0~100 범위로 반환
             }
         except ValueError as e:
             logger.error(f"[NLP] 입력값 검증 오류: {str(e)}")
             raise
         except Exception as e:
             logger.error(f"[NLP] 내용 신뢰도 평가 중 오류 발생: {str(e)}")
-            raise
-
-    def calculate_final_score(self, source_trust: Dict, content_trust: Dict) -> Dict:
-        """종합 점수 계산"""
-        try:
-            if not source_trust or not content_trust:
-                raise ValueError("[SCORING] 출처 신뢰도와 내용 신뢰도 데이터가 필요합니다.")
-                
-            if 'total_score' not in source_trust or 'total_score' not in content_trust:
-                raise ValueError("[SCORING] 신뢰도 데이터에 총점이 포함되어 있지 않습니다.")
-            
-            logger.info("[SCORING] 종합 점수 계산 시작")
-            
-            # 가중치 적용
-            weights = self.admin_config['weights']
-            final_score = (
-                source_trust['total_score'] * weights['source'] +
-                content_trust['total_score'] * weights['content']
-            )
-            
-            grade = self._calculate_grade(final_score)
-            
-            logger.info(f"[SCORING] 종합 점수 계산 완료: {final_score} (등급: {grade})")
-            
-            return {
-                'source_trust': source_trust['total_score'],
-                'content_trust': content_trust['total_score'],
-                'final_score': final_score,
-                'grade': grade
-            }
-        except ValueError as e:
-            logger.error(f"[SCORING] 입력값 검증 오류: {str(e)}")
-            raise
-        except Exception as e:
-            logger.error(f"[SCORING] 종합 점수 계산 중 오류 발생: {str(e)}")
             raise
 
     def _calculate_subscriber_score(self, subscriber_count: int) -> float:
@@ -323,21 +329,4 @@ class Evaluator:
         suspicious_penalty = min(30.0, suspicious_count * 15.0)
         score = max(0.0, score - suspicious_penalty)
         
-        return max(0.0, min(100.0, score))
-
-    def _calculate_grade(self, score: float) -> str:
-        """등급 계산"""
-        try:
-            if score >= 0.8:
-                return "A"
-            elif score >= 0.6:
-                return "B"
-            elif score >= 0.4:
-                return "C"
-            elif score >= 0.2:
-                return "D"
-            else:
-                return "F"
-        except Exception as e:
-            logger.error(f"[SCORING] 등급 계산 중 오류 발생: {str(e)}")
-            raise 
+        return max(0.0, min(100.0, score)) 
